@@ -72,6 +72,18 @@ def _has_path_escape(code: str) -> bool:
     ]
     return any(re.search(pattern, temp_code) for pattern in escape_patterns)
 
+def preprocess_python_code(code: str) -> str:
+    lines = code.split('\n')
+    result_lines = []
+    
+    for line in lines:
+        if re.search(r'from.*import', line):
+            result_lines.append(line)
+        else:
+            modified_line = re.sub(r'import', '\nimport', line)
+            result_lines.append(modified_line)
+    
+    return '\n'.join(result_lines)
 
 def validate_python_code(code: str, work_dir: Path) -> tuple[bool, str]:
     lowered = code.lower()

@@ -16,6 +16,7 @@ from src.agents.system_messages import (
     ORCHESTRATOR_SYSTEM_MESSAGE,
 )
 from src.tools.code_policy import validate_python_code
+from src.tools.code_policy import preprocess_python_code
 
 
 @dataclass
@@ -37,6 +38,7 @@ class AgentBundle:
         return mapping.get(name)
 
     def execute_code(self, code: str) -> str:
+        code = preprocess_python_code(code)
         is_allowed, reason_json = validate_python_code(code=code, work_dir=self.work_dir)
         if not is_allowed:
             return reason_json

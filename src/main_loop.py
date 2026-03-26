@@ -41,19 +41,8 @@ def _next_run_dir(root: Path) -> Path:
 
 
 def _build_initial_prompt(cfg: AgentRuntimeConfig, run_dir: Path, prev_score: float | None, prev_error: str | None) -> str:
-    if prev_error:
-        score_line = f"Previous Kaggle submission FAILED with error: {prev_error}. Fix the submission format."
-    elif prev_score is not None:
-        score_line = f"Previous Kaggle public MSE: {prev_score}. Improve this score."
-    else:
-        score_line = "This is the first iteration. Build a baseline quickly."
-
     return (
         "Solve the Kaggle competition task using strict role separation.\n"
-        f"Competition slug: {cfg.kaggle_competition}\n"
-        f"Workspace: {run_dir}\n"
-        f"Target MSE threshold: {cfg.target_mse} (lower is better)\n"
-        f"{score_line}\n"
         "You must produce submission.csv in workspace and call submit_to_kaggle."
     )
 
@@ -140,7 +129,7 @@ class WorkflowManager:
                         
             elif last_msg["name"] == "CodeExecutor" or last_msg["name"] == "System":
                 print(f"  [{last_msg['name']}] -> {author_name} (Returning result/error)", flush=True)
-                execution_history.append({"role": "user", "name": "System", "content": f"You have {(self.cfg.max_loop_rounds - loop_rounds)/2} turns left until you HAVE TO finish your work and response with send_message tool"})
+                execution_history.append({"role": "user", "name": "System", "content": f"You have {(self.cfg.max_loop_rounds - loop_rounds - 1)/2} turns left until you HAVE TO finish your work and response with send_message tool"})
                 reply = self._generate_reply(author_agent, execution_history, author_name)
                 errors = validate_tool_calls(reply, author_name)
                 if errors:
@@ -262,6 +251,12 @@ class WorkflowManager:
                         "role": "assistant", "name": next_speaker, "content": final_msg
                     })
                     self.logger.add_event("agent_completed_task", {"agent": next_speaker, "content": final_msg})
+                else:
+                    self.shared_history.append({
+                        "role": "assistant", "name": "System", "content": "Orchestrator has to use one of theese tools: delegate, submit_to_kaggle"
+                    })
+                    self.logger.add_event("agent_completed_task", {"agent": next_speaker, "content": final_msg})
+
 
 
 def run() -> None:
