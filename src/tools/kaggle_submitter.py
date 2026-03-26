@@ -47,7 +47,7 @@ class KaggleSubmitter:
         score_raw = str(getattr(latest, "publicScore", "") or "").strip()
         score = float(score_raw) if score_raw else None
         return KaggleResult(
-            status=getattr(latest, "status", "submitted"),
+            status=str(getattr(latest, "status", "submitted")),
             public_score=score,
-            message=getattr(latest, "description", "No description"),
+            message=str(getattr(latest, "description", "No description")),
         )
