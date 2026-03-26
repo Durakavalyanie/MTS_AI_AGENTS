@@ -1,0 +1,15 @@
+pyautogen
+kaggle
+python-dotenv
+openai
+pandas
+numpy
+scipy
+scikit-learn
+xgboost
+lightgbm
+catboost
+torch
+category_encoders
+scikit-learn
+statsmodels

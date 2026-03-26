@@ -1,0 +1,10 @@
+.cursor*
+.vscode
+.python-version
+TASK.md
+.env
+.venv/
+workspace/run_*/
+logs/*.json
+__pycache__/
+*.pyc
