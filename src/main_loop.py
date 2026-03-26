@@ -66,7 +66,7 @@ class WorkflowManager:
         self.cfg = cfg
         self.run_dir = run_dir
         
-        self.orchestrator_history: list[dict[str, Any]] = []
+        self.shared_history: list[dict[str, Any]] = []
         self.best_score: float | None = None
         self.prev_error: str | None = None
         self.stop_condition_met = False
@@ -100,17 +100,17 @@ class WorkflowManager:
                     print(f"  -> Message: {args.get('message')}", flush=True)
         print(f"{'='*50}\n", flush=True)
 
-    def _run_code_execution_loop(self, author_name: str, initial_code_msg: str, orchestrator_directive: str) -> str:
+    def _run_code_execution_loop(self, author_name: str, initial_code_msg: str) -> str:
         """
         Runs the isolated execution loop: Author -> Executor -> Author.
         Returns the final message (send_message) from the Author to the Orchestrator.
         """
         author_agent = self.bundle.get_agent_by_name(author_name)
         
-        execution_history: list[dict[str, Any]] = [
-            {"role": "user", "name": "Orchestrator", "content": f"Orchestrator directive:\n{orchestrator_directive}"},
-            {"role": "assistant", "name": author_name, "content": initial_code_msg}
-        ]
+        # Initialize execution history with a copy of the shared history
+        # so the agent remembers the context of the task during debugging
+        execution_history = list(self.shared_history)
+        execution_history.append({"role": "assistant", "name": author_name, "content": initial_code_msg})
         
         self.logger.add_event("code_execution_loop_start", {"author": author_name, "initial_msg": initial_code_msg})
         
@@ -160,27 +160,27 @@ class WorkflowManager:
 
     def run(self):
         initial_prompt = _build_initial_prompt(self.cfg, self.run_dir, self.best_score, self.prev_error)
-        self.orchestrator_history.append({"role": "user", "name": "System", "content": initial_prompt})
+        self.shared_history.append({"role": "user", "name": "System", "content": initial_prompt})
         
         while self.round_count < self.cfg.max_round and not self.stop_condition_met:
             self.round_count += 1
             
             # 1. Orchestrator Turn
-            orch_reply = self._generate_reply(self.bundle.orchestrator, self.orchestrator_history, "Orchestrator")
+            orch_reply = self._generate_reply(self.bundle.orchestrator, self.shared_history, "Orchestrator")
             self._print_turn("Orchestrator", orch_reply)
             self.logger.add_event("orchestrator_turn", {"content": orch_reply})
             
             errors = validate_tool_calls(orch_reply, "Orchestrator")
             if errors:
-                self.orchestrator_history.append({
+                self.shared_history.append({
                     "role": "assistant", "name": "Orchestrator", "content": orch_reply
                 })
-                self.orchestrator_history.append({
+                self.shared_history.append({
                     "role": "user", "name": "System", "content": "Protocol Validation Error:\n" + "\n".join(errors)
                 })
                 continue
                 
-            self.orchestrator_history.append({"role": "assistant", "name": "Orchestrator", "content": orch_reply})
+            self.shared_history.append({"role": "assistant", "name": "Orchestrator", "content": orch_reply})
             
             calls = parse_tool_calls(orch_reply)
             for tool_name, args in calls:
@@ -196,7 +196,7 @@ class WorkflowManager:
                     })
                     
                     if result.public_score is None:
-                        self.orchestrator_history.append({
+                        self.shared_history.append({
                             "role": "user", "name": "KaggleSystem", 
                             "content": f"Submission FAILED: {result.message}. Please fix the issue and try again."
                         })
@@ -207,12 +207,12 @@ class WorkflowManager:
                         if score <= self.cfg.target_mse:
                             self.logger.add_event("stop_condition_met", {"best_score": score})
                             self.stop_condition_met = True
-                            self.orchestrator_history.append({
+                            self.shared_history.append({
                                 "role": "user", "name": "KaggleSystem", 
                                 "content": f"SUCCESS! Score {score} is better than target {self.cfg.target_mse}. Terminating."
                             })
                         else:
-                            self.orchestrator_history.append({
+                            self.shared_history.append({
                                 "role": "user", "name": "KaggleSystem", 
                                 "content": f"Submission successful. Score: {score}. Target is {self.cfg.target_mse}. You must improve the score."
                             })
@@ -223,38 +223,43 @@ class WorkflowManager:
                     agent = self.bundle.get_agent_by_name(next_speaker)
                     
                     if not agent:
-                        self.orchestrator_history.append({
+                        self.shared_history.append({
                             "role": "user", "name": "System", "content": f"Error: Agent {next_speaker} not found."
                         })
                         continue
                         
                     # 2. Agent Turn
                     self._print_turn(next_speaker)
-                    # Give the agent the directive from the orchestrator
-                    agent_prompt = f"Orchestrator directive:\n{directive}"
-                    agent_history = [{"role": "user", "name": "Orchestrator", "content": agent_prompt}]
                     
-                    agent_reply = self._generate_reply(agent, agent_history, next_speaker)
+                    # Append the orchestrator's directive to the shared history so the agent knows they are being addressed
+                    self.shared_history.append({
+                        "role": "user", 
+                        "name": "Orchestrator", 
+                        "content": f"Orchestrator directive for {next_speaker}:\n{directive}"
+                    })
+                    
+                    agent_reply = self._generate_reply(agent, self.shared_history, next_speaker)
                     agent_errors = validate_tool_calls(agent_reply, next_speaker)
                     
+                    # If the agent messes up formatting immediately, handle it in the shared history
                     while agent_errors:
-                        agent_history.append({"role": "assistant", "name": next_speaker, "content": agent_reply})
-                        agent_history.append({"role": "user", "name": "System", "content": "Protocol Validation Error:\n" + "\n".join(agent_errors)})
-                        agent_reply = self._generate_reply(agent, agent_history, next_speaker)
+                        self.shared_history.append({"role": "assistant", "name": next_speaker, "content": agent_reply})
+                        self.shared_history.append({"role": "user", "name": "System", "content": "Protocol Validation Error:\n" + "\n".join(agent_errors)})
+                        agent_reply = self._generate_reply(agent, self.shared_history, next_speaker)
                         agent_errors = validate_tool_calls(agent_reply, next_speaker)
                         
                     agent_calls = parse_tool_calls(agent_reply)
                     
                     # If agent wants to execute code, enter the isolated loop
                     if any(t == "execute_code" for t, _ in agent_calls):
-                        final_msg = self._run_code_execution_loop(next_speaker, agent_reply, directive)
+                        final_msg = self._run_code_execution_loop(next_speaker, agent_reply)
                     else:
-                        # Agent just sent a message
+                        # Agent just sent a message directly
                         final_msg = agent_reply
                         
-                    # Return the final result to the orchestrator
-                    self.orchestrator_history.append({
-                        "role": "user", "name": next_speaker, "content": final_msg
+                    # Return the final result to the shared history
+                    self.shared_history.append({
+                        "role": "assistant", "name": next_speaker, "content": final_msg
                     })
                     self.logger.add_event("agent_completed_task", {"agent": next_speaker, "content": final_msg})
 
