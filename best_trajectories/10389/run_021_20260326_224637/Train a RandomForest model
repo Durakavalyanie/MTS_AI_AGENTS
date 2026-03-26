@@ -1,0 +1,16 @@
+# Train a RandomForest model
+model = RandomForestRegressor(n_estimators=100, random_state=42)
+model.fit(X_train, y_train.values.ravel())
+
+# Make predictions on test set
+predictions = model.predict(X_test)
+
+# Create submission dataframe
+submission = pd.DataFrame({
+    'index': X_test.index,
+    'prediction': predictions
+})
+
+# Save submission
+submission.to_csv('submission.csv', index=False)
+print("Submission created successfully.")

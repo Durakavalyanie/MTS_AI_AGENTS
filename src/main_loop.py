@@ -248,7 +248,7 @@ class WorkflowManager:
                         
                     # Return the final result to the shared history
                     # Add directory state to help Orchestrator verify pipeline rules
-                    dir_files = [f.name for f in self.run_dir.iterdir() if f.is_file()]
+                    dir_files = [f.name for f in self.run_dir.iterdir() if f.is_file() and f.suffix == '.csv']
                     dir_state = f"\n\n[SYSTEM: Current files in workspace: {', '.join(dir_files)}]"
                     
                     self.shared_history.append({
