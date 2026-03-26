@@ -14,7 +14,6 @@ from src.agents.system_messages import (
     DATA_ENGINEER_SYSTEM_MESSAGE,
     ML_ENGINEER_SYSTEM_MESSAGE,
     ORCHESTRATOR_SYSTEM_MESSAGE,
-    REVIEWER_SYSTEM_MESSAGE,
 )
 from src.tools.code_policy import validate_python_code
 

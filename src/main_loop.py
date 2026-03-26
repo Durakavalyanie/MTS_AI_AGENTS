@@ -31,7 +31,7 @@ def _next_run_dir(root: Path) -> Path:
     # Copy data files to workspace
     raw_dir = root / "data" / "raw"
     if raw_dir.exists():
-        for file_name in ["train.csv", "test.csv", "sample_submission.csv"]:
+        for file_name in ["train.csv", "test.csv", "sample_submition.csv"]:
             src_file = raw_dir / file_name
             if src_file.exists():
                 shutil.copy(src_file, run_dir / file_name)
