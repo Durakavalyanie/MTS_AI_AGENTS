@@ -247,10 +247,14 @@ class WorkflowManager:
                         final_msg = agent_reply
                         
                     # Return the final result to the shared history
+                    # Add directory state to help Orchestrator verify pipeline rules
+                    dir_files = [f.name for f in self.run_dir.iterdir() if f.is_file()]
+                    dir_state = f"\n\n[SYSTEM: Current files in workspace: {', '.join(dir_files)}]"
+                    
                     self.shared_history.append({
-                        "role": "assistant", "name": next_speaker, "content": final_msg
+                        "role": "assistant", "name": next_speaker, "content": final_msg + dir_state
                     })
-                    self.logger.add_event("agent_completed_task", {"agent": next_speaker, "content": final_msg})
+                    self.logger.add_event("agent_completed_task", {"agent": next_speaker, "content": final_msg + dir_state})
                 else:
                     self.shared_history.append({
                         "role": "assistant", "name": "System", "content": "Orchestrator has to use one of theese tools: delegate, submit_to_kaggle"
