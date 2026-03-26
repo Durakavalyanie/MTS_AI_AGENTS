@@ -17,6 +17,7 @@ class AgentRuntimeConfig:
     kaggle_competition: str
     target_mse: float
     max_round: int
+    max_loop_rounds: int
     max_tokens: int
     models: dict[str, str]
 
@@ -52,6 +53,7 @@ def load_runtime_config(project_root: Path) -> AgentRuntimeConfig:
         kaggle_competition=_require_env("KAGGLE_COMPETITION"),
         target_mse=float(_require_env("TARGET_MSE")),
         max_round=int(os.getenv("MAX_ROUND", "40")),
+        max_loop_rounds=int(os.getenv("MAX_LOOP_ROUNDS", "10")),
         max_tokens=int(os.getenv("MAX_TOKENS", "4096")),
         models=models,
     )

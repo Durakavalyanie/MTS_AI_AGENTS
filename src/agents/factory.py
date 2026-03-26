@@ -25,7 +25,6 @@ class AgentBundle:
     data_analyst: AssistantAgent
     data_engineer: AssistantAgent
     ml_engineer: AssistantAgent
-    reviewer: AssistantAgent
     executor_backend: LocalCommandLineCodeExecutor
     work_dir: Path
 
@@ -35,7 +34,6 @@ class AgentBundle:
             "DataAnalyst": self.data_analyst,
             "DataEngineer": self.data_engineer,
             "MLEngineer": self.ml_engineer,
-            "ReviewerDebugger": self.reviewer,
         }
         return mapping.get(name)
 
@@ -86,18 +84,11 @@ def create_agents(cfg: AgentRuntimeConfig, run_dir: Path) -> AgentBundle:
         llm_config=llm_config_for_role(cfg, "ml_engineer"),
         system_message=ML_ENGINEER_SYSTEM_MESSAGE,
     )
-    reviewer = AssistantAgent(
-        name="ReviewerDebugger",
-        llm_config=llm_config_for_role(cfg, "reviewer"),
-        system_message=REVIEWER_SYSTEM_MESSAGE,
-    )
-
     return AgentBundle(
         orchestrator=orchestrator,
         data_analyst=data_analyst,
         data_engineer=data_engineer,
         ml_engineer=ml_engineer,
-        reviewer=reviewer,
         executor_backend=executor_backend,
         work_dir=run_dir,
     )

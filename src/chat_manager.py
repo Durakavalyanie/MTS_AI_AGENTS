@@ -10,7 +10,6 @@ VALID_AGENT_NAMES = {
     "DataAnalyst",
     "DataEngineer",
     "MLEngineer",
-    "ReviewerDebugger",
     "CodeExecutor",
 }
 
@@ -57,8 +56,6 @@ def validate_tool_calls(content: str, role: str) -> list[str]:
             errors.append(f"Error: Orchestrator can only use 'delegate' or 'submit_to_kaggle' tool, got '{tool_name}'.")
         elif role in {"DataAnalyst", "DataEngineer", "MLEngineer"} and tool_name not in {"execute_code", "send_message"}:
             errors.append(f"Error: {role} can only use 'execute_code' or 'send_message', got '{tool_name}'.")
-        elif role == "ReviewerDebugger" and tool_name != "review_code":
-            errors.append(f"Error: ReviewerDebugger can only use 'review_code', got '{tool_name}'.")
             
         try:
             args = json.loads(json_str, strict=False) if json_str else {}
@@ -90,16 +87,6 @@ def validate_tool_calls(content: str, role: str) -> list[str]:
                     if req not in args:
                         errors.append(f"Error: Missing required JSON argument '{req}' for tool '{tool_name}'.")
                         
-            elif tool_name == "review_code":
-                for req in ["expected_outcome", "decision", "failure_reason", "how_to_fix"]:
-                    if req not in args:
-                        errors.append(f"Error: Missing required JSON argument '{req}' for tool '{tool_name}'.")
-                decision = args.get("decision")
-                if decision not in {"APPROVE", "REJECT"}:
-                    errors.append("Error: 'decision' must be either 'APPROVE' or 'REJECT'.")
-                if decision == "APPROVE" and not code:
-                    errors.append("Error: Missing markdown code block ```python ... ``` with the approved code. You must include the code outside the JSON when approving.")
-                    
         except json.JSONDecodeError as e:
             errors.append(f"Error: Invalid JSON format for tool '{tool_name}'. JSONDecodeError: {str(e)}. Make sure your JSON is valid.")
             

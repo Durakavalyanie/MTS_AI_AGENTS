@@ -92,22 +92,22 @@ class WorkflowManager:
                     print(f"  -> Message: {args.get('message')}", flush=True)
         print(f"{'='*50}\n", flush=True)
 
-    def _run_code_execution_loop(self, author_name: str, initial_code_msg: str) -> str:
+    def _run_code_execution_loop(self, author_name: str, initial_code_msg: str, orchestrator_directive: str) -> str:
         """
-        Runs the isolated execution loop: Author -> Reviewer -> Executor -> Author.
+        Runs the isolated execution loop: Author -> Executor -> Author.
         Returns the final message (send_message) from the Author to the Orchestrator.
         """
         author_agent = self.bundle.get_agent_by_name(author_name)
-        reviewer = self.bundle.reviewer
         
         execution_history: list[dict[str, Any]] = [
+            {"role": "user", "name": "Orchestrator", "content": f"Orchestrator directive:\n{orchestrator_directive}"},
             {"role": "assistant", "name": author_name, "content": initial_code_msg}
         ]
         
         self.logger.add_event("code_execution_loop_start", {"author": author_name, "initial_msg": initial_code_msg})
         
         loop_rounds = 0
-        while loop_rounds < 30:
+        while loop_rounds < self.cfg.max_loop_rounds:
             loop_rounds += 1
             last_msg = execution_history[-1]
             
@@ -117,57 +117,28 @@ class WorkflowManager:
                     self.logger.add_event("code_execution_loop_end", {"author": author_name, "final_msg": last_msg["content"]})
                     return last_msg["content"]
                 
-                print(f"  [{author_name}] -> ReviewerDebugger (Code proposed)", flush=True)
-                reviewer_prompt = f"Please review this code proposal:\n\n{last_msg['content']}"
-                reply = self._generate_reply(reviewer, [{"role": "user", "content": reviewer_prompt}], "ReviewerDebugger")
-                
-                errors = validate_tool_calls(reply, "ReviewerDebugger")
-                if errors:
-                    execution_history.append({
-                        "role": "user", 
-                        "name": "System", 
-                        "content": "Protocol Validation Error:\n" + "\n".join(errors)
-                    })
-                    self.logger.add_event("reviewer_validation_error", {"errors": errors, "reply": reply})
-                    continue
-                    
-                execution_history.append({"role": "user", "name": "ReviewerDebugger", "content": reply})
-                self.logger.add_event("reviewer_reply", {"content": reply})
-                
-            elif last_msg["name"] == "ReviewerDebugger":
-                calls = parse_tool_calls(last_msg["content"])
-                review_call = next((args for t, args in calls if t == "review_code"), None)
-                
-                if review_call and review_call.get("decision") == "APPROVE":
-                    print(f"  [ReviewerDebugger] -> CodeExecutor (Code APPROVED)", flush=True)
-                    code = review_call.get("code", "")
+                exec_call = next((args for t, args in calls if t == "execute_code"), None)
+                if exec_call:
+                    print(f"  [{author_name}] -> CodeExecutor (Executing code directly)", flush=True)
+                    code = exec_call.get("code", "")
                     exec_result = self.bundle.execute_code(code)
                     execution_history.append({"role": "user", "name": "CodeExecutor", "content": exec_result})
                     self.logger.add_event("executor_result", {"content": exec_result})
                 else:
-                    print(f"  [ReviewerDebugger] -> {author_name} (Code REJECTED)", flush=True)
-                    reply = self._generate_reply(author_agent, execution_history, author_name)
-                    errors = validate_tool_calls(reply, author_name)
-                    if errors:
-                        execution_history.append({
-                            "role": "user", 
-                            "name": "System", 
-                            "content": "Protocol Validation Error:\n" + "\n".join(errors)
-                        })
-                        self.logger.add_event("author_validation_error", {"errors": errors, "reply": reply})
-                    else:
-                        execution_history.append({"role": "assistant", "name": author_name, "content": reply})
-                        self.logger.add_event("author_reply", {"content": reply})
+                    # No recognizable tool call, should have been caught by validation, but just in case
+                    error_msg = "Protocol Validation Error:\nError: You must use either 'execute_code' or 'send_message'."
+                    execution_history.append({"role": "user", "name": "System", "content": error_msg})
+                    self.logger.add_event("author_validation_error", {"errors": [error_msg], "reply": last_msg["content"]})
                         
-            elif last_msg["name"] == "CodeExecutor":
-                print(f"  [CodeExecutor] -> {author_name} (Execution finished)", flush=True)
+            elif last_msg["name"] == "CodeExecutor" or last_msg["name"] == "System":
+                print(f"  [{last_msg['name']}] -> {author_name} (Returning result/error)", flush=True)
                 reply = self._generate_reply(author_agent, execution_history, author_name)
                 errors = validate_tool_calls(reply, author_name)
                 if errors:
                     execution_history.append({
                         "role": "user", 
                         "name": "System", 
-                        "content": "Protocol Validation Error:\n" + "\n".join(errors)
+                        "content": "Protocol Validation Error:\n" + "\n".join(errors) + "\nPlease fix your JSON format and try again."
                     })
                     self.logger.add_event("author_validation_error", {"errors": errors, "reply": reply})
                 else:
@@ -267,7 +238,7 @@ class WorkflowManager:
                     
                     # If agent wants to execute code, enter the isolated loop
                     if any(t == "execute_code" for t, _ in agent_calls):
-                        final_msg = self._run_code_execution_loop(next_speaker, agent_reply)
+                        final_msg = self._run_code_execution_loop(next_speaker, agent_reply, directive)
                     else:
                         # Agent just sent a message
                         final_msg = agent_reply
