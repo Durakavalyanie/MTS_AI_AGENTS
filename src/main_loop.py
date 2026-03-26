@@ -27,9 +27,15 @@ def _next_run_dir(root: Path) -> Path:
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     run_dir = workspace_root / f"run_{run_index:03d}_{stamp}"
     run_dir.mkdir(parents=True, exist_ok=False)
-    shutil.copy(root / "data/raw/train.csv", run_dir / "train.csv")
-    shutil.copy(root / "data/raw/test.csv", run_dir / "test.csv")
-    shutil.copy(root / "data/raw/sample_submition.csv", run_dir / "sample_submition.csv")
+    
+    # Copy data files to workspace
+    raw_dir = root / "data" / "raw"
+    if raw_dir.exists():
+        for file_name in ["train.csv", "test.csv", "sample_submission.csv"]:
+            src_file = raw_dir / file_name
+            if src_file.exists():
+                shutil.copy(src_file, run_dir / file_name)
+                
     return run_dir
 
 
@@ -66,11 +72,25 @@ class WorkflowManager:
         self.round_count = 0
 
     def _generate_reply(self, agent: Any, messages: list[dict[str, Any]], sender_name: str) -> str:
-        # We use autogen's generate_reply directly
         reply = agent.generate_reply(messages=messages, sender=agent)
         if isinstance(reply, dict):
             reply = reply.get("content", "")
         return str(reply)
+
+    def _print_turn(self, speaker: str, content: str = "") -> None:
+        print(f"\n{'='*50}", flush=True)
+        print(f"[{self.round_count}] TURN: {speaker}", flush=True)
+        
+        if speaker == "Orchestrator":
+            calls = parse_tool_calls(content)
+            for tool_name, args in calls:
+                print(f"TOOL CALLED: {tool_name}", flush=True)
+                if tool_name == "delegate":
+                    print(f"  -> Next Speaker: {args.get('next_speaker')}", flush=True)
+                    print(f"  -> Directive: {args.get('directive')}", flush=True)
+                elif tool_name == "submit_to_kaggle":
+                    print(f"  -> Message: {args.get('message')}", flush=True)
+        print(f"{'='*50}\n", flush=True)
 
     def _run_code_execution_loop(self, author_name: str, initial_code_msg: str) -> str:
         """
@@ -80,25 +100,24 @@ class WorkflowManager:
         author_agent = self.bundle.get_agent_by_name(author_name)
         reviewer = self.bundle.reviewer
         
-        # This history is private to this specific execution loop
         execution_history: list[dict[str, Any]] = [
             {"role": "assistant", "name": author_name, "content": initial_code_msg}
         ]
         
+        self.logger.add_event("code_execution_loop_start", {"author": author_name, "initial_msg": initial_code_msg})
+        
         loop_rounds = 0
-        while loop_rounds < 10: # Prevent infinite loops
+        while loop_rounds < 10:
             loop_rounds += 1
             last_msg = execution_history[-1]
             
             if last_msg["name"] == author_name:
-                # Author just spoke. Did they send a message or execute code?
                 calls = parse_tool_calls(last_msg["content"])
                 if any(t == "send_message" for t, _ in calls):
-                    # Author is done, returning to orchestrator
+                    self.logger.add_event("code_execution_loop_end", {"author": author_name, "final_msg": last_msg["content"]})
                     return last_msg["content"]
                 
-                # Author wants to execute code -> send to Reviewer
-                # Reviewer only needs to see the code, not the whole history
+                print(f"  [{author_name}] -> ReviewerDebugger (Code proposed)", flush=True)
                 reviewer_prompt = f"Please review this code proposal:\n\n{last_msg['content']}"
                 reply = self._generate_reply(reviewer, [{"role": "user", "content": reviewer_prompt}], "ReviewerDebugger")
                 
@@ -109,21 +128,24 @@ class WorkflowManager:
                         "name": "System", 
                         "content": "Protocol Validation Error:\n" + "\n".join(errors)
                     })
+                    self.logger.add_event("reviewer_validation_error", {"errors": errors, "reply": reply})
                     continue
                     
                 execution_history.append({"role": "user", "name": "ReviewerDebugger", "content": reply})
+                self.logger.add_event("reviewer_reply", {"content": reply})
                 
             elif last_msg["name"] == "ReviewerDebugger":
                 calls = parse_tool_calls(last_msg["content"])
                 review_call = next((args for t, args in calls if t == "review_code"), None)
                 
                 if review_call and review_call.get("decision") == "APPROVE":
-                    # Execute code
+                    print(f"  [ReviewerDebugger] -> CodeExecutor (Code APPROVED)", flush=True)
                     code = review_call.get("code", "")
                     exec_result = self.bundle.execute_code(code)
                     execution_history.append({"role": "user", "name": "CodeExecutor", "content": exec_result})
+                    self.logger.add_event("executor_result", {"content": exec_result})
                 else:
-                    # REJECT -> send back to author
+                    print(f"  [ReviewerDebugger] -> {author_name} (Code REJECTED)", flush=True)
                     reply = self._generate_reply(author_agent, execution_history, author_name)
                     errors = validate_tool_calls(reply, author_name)
                     if errors:
@@ -132,11 +154,13 @@ class WorkflowManager:
                             "name": "System", 
                             "content": "Protocol Validation Error:\n" + "\n".join(errors)
                         })
+                        self.logger.add_event("author_validation_error", {"errors": errors, "reply": reply})
                     else:
                         execution_history.append({"role": "assistant", "name": author_name, "content": reply})
+                        self.logger.add_event("author_reply", {"content": reply})
                         
             elif last_msg["name"] == "CodeExecutor":
-                # Send execution result back to author
+                print(f"  [CodeExecutor] -> {author_name} (Execution finished)", flush=True)
                 reply = self._generate_reply(author_agent, execution_history, author_name)
                 errors = validate_tool_calls(reply, author_name)
                 if errors:
@@ -145,10 +169,14 @@ class WorkflowManager:
                         "name": "System", 
                         "content": "Protocol Validation Error:\n" + "\n".join(errors)
                     })
+                    self.logger.add_event("author_validation_error", {"errors": errors, "reply": reply})
                 else:
                     execution_history.append({"role": "assistant", "name": author_name, "content": reply})
+                    self.logger.add_event("author_reply", {"content": reply})
                     
-        return "[TOOL_CALL]send_message\n{\"thoughts\": \"Execution loop timed out.\", \"message\": \"Error: Code execution loop reached maximum attempts.\"}"
+        timeout_msg = "[TOOL_CALL]send_message\n{\"thoughts\": \"Execution loop timed out.\", \"message\": \"Error: Code execution loop reached maximum attempts.\"}"
+        self.logger.add_event("code_execution_loop_timeout", {"msg": timeout_msg})
+        return timeout_msg
 
     def run(self):
         initial_prompt = _build_initial_prompt(self.cfg, self.run_dir, self.best_score, self.prev_error)
@@ -159,6 +187,7 @@ class WorkflowManager:
             
             # 1. Orchestrator Turn
             orch_reply = self._generate_reply(self.bundle.orchestrator, self.orchestrator_history, "Orchestrator")
+            self._print_turn("Orchestrator", orch_reply)
             self.logger.add_event("orchestrator_turn", {"content": orch_reply})
             
             errors = validate_tool_calls(orch_reply, "Orchestrator")
@@ -220,6 +249,7 @@ class WorkflowManager:
                         continue
                         
                     # 2. Agent Turn
+                    self._print_turn(next_speaker)
                     # Give the agent the directive from the orchestrator
                     agent_prompt = f"Orchestrator directive:\n{directive}"
                     agent_history = [{"role": "user", "name": "Orchestrator", "content": agent_prompt}]
