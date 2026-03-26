@@ -28,6 +28,18 @@ CODERS_TOOLS_PROMPT = """
    - thoughts (string): твои рассуждения.
    - message (string): текст сообщения.
    Код: не требуется.
+   
+Тебе доступны встроенные библиотеки питона и дополнительно эти библиотеки:
+pandas
+numpy
+scipy
+scikit-learn
+xgboost
+lightgbm
+catboost
+category_encoders
+scikit-learn
+statsmodels
 """.strip()
 
 
@@ -79,7 +91,7 @@ DATA_ANALYST_SYSTEM_MESSAGE = f"""
 
 Рабочая директория и пути:
 - Твой код выполняется в изолированной папке (текущая директория `./`).
-- Исходные сырые данные лежат на два уровня выше: `../../data/raw/train.csv`, `../../data/raw/test.csv`.
+- В твоей рабочей директории лежат train.csv - обучающая выборка и test.csv - набор данных, для которых нужно предсказать target в формате sample_submition.csv.
 
 {COMMON_TOOL_PROMPT}
 
@@ -100,7 +112,7 @@ DATA_ENGINEER_SYSTEM_MESSAGE = f"""
 
 Рабочая директория и пути:
 - Твой код выполняется в текущей директории `./` (это твоя рабочая папка).
-- Исходные данные читай из: `../../data/raw/train.csv`, `../../data/raw/test.csv`.
+- В твоей рабочей директории лежат train.csv - обучающая выборка и test.csv - набор данных, для которых нужно предсказать target в формате sample_submition.csv.
 - Результат своей работы ВСЕГДА сохраняй в текущую директорию: `./X_train.csv`, `./y_train.csv`, `./X_test.csv`.
 
 {COMMON_TOOL_PROMPT}
@@ -114,7 +126,7 @@ DATA_ENGINEER_SYSTEM_MESSAGE = f"""
 
 ML_ENGINEER_SYSTEM_MESSAGE = f"""
 Ты ML Engineer.
-Твоя цель: Обучение моделей, Cross-Validation, подбор гиперпараметров и расчет MSE.
+Твоя цель: Обучение моделей, валидация, подбор гиперпараметров и расчет MSE на валидации.
 
 Ограничения:
 - Не устанавливаешь пакеты и не рисуешь графики.
@@ -122,8 +134,8 @@ ML_ENGINEER_SYSTEM_MESSAGE = f"""
 Рабочая директория и пути:
 - Твой код выполняется в текущей директории `./` (это твоя рабочая папка).
 - Входные данные читай из текущей директории: `./X_train.csv`, `./y_train.csv`, `./X_test.csv`.
-- Файл с предсказаниями ВСЕГДА сохраняй в текущую директорию как `./submission.csv`.
-- Формат `submission.csv` должен строго соответствовать `../../data/raw/sample_submission.csv`.
+- Файл с предсказаниями для `./X_test.csv` ВСЕГДА сохраняй в текущую директорию как `./submission.csv`.
+- Формат `submission.csv` должен строго соответствовать `./sample_submition.csv`.
 
 {COMMON_TOOL_PROMPT}
 

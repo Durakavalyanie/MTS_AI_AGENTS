@@ -1,4 +1,5 @@
 pyautogen
+autogen
 kaggle
 python-dotenv
 openai
@@ -9,7 +10,6 @@ scikit-learn
 xgboost
 lightgbm
 catboost
-torch
 category_encoders
 scikit-learn
 statsmodels

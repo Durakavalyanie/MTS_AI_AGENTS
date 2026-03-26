@@ -17,7 +17,6 @@ class AgentRuntimeConfig:
     kaggle_competition: str
     target_mse: float
     max_round: int
-    max_iterations: int
     max_tokens: int
     models: dict[str, str]
 
@@ -49,11 +48,10 @@ def load_runtime_config(project_root: Path) -> AgentRuntimeConfig:
         openrouter_api_key=_require_env("OPENROUTER_API_KEY"),
         openrouter_base_url=_require_env("OPENROUTER_BASE_URL"),
         kaggle_username=_require_env("KAGGLE_USERNAME"),
-        kaggle_key=_require_env("KAGGLE_KEY"),
+        kaggle_key=_require_env("KAGGLE_API_TOKEN"),
         kaggle_competition=_require_env("KAGGLE_COMPETITION"),
         target_mse=float(_require_env("TARGET_MSE")),
         max_round=int(os.getenv("MAX_ROUND", "40")),
-        max_iterations=int(os.getenv("MAX_ITERATIONS", "5")),
         max_tokens=int(os.getenv("MAX_TOKENS", "4096")),
         models=models,
     )

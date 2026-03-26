@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -16,7 +17,8 @@ def _project_root() -> Path:
     return Path(__file__).resolve().parents[1]
 
 
-def _next_run_dir(workspace_root: Path) -> Path:
+def _next_run_dir(root: Path) -> Path:
+    workspace_root = root / "workspace"
     workspace_root.mkdir(parents=True, exist_ok=True)
     existing = sorted(
         path.name for path in workspace_root.iterdir() if path.is_dir() and path.name.startswith("run_")
@@ -25,6 +27,9 @@ def _next_run_dir(workspace_root: Path) -> Path:
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     run_dir = workspace_root / f"run_{run_index:03d}_{stamp}"
     run_dir.mkdir(parents=True, exist_ok=False)
+    shutil.copy(root / "data/raw/train.csv", run_dir / "train.csv")
+    shutil.copy(root / "data/raw/test.csv", run_dir / "test.csv")
+    shutil.copy(root / "data/raw/sample_submition.csv", run_dir / "sample_submition.csv")
     return run_dir
 
 
@@ -247,7 +252,7 @@ class WorkflowManager:
 def run() -> None:
     root = _project_root()
     cfg = load_runtime_config(root)
-    run_dir = _next_run_dir(root / "workspace")
+    run_dir = _next_run_dir(root)
     logger = TrajectoryLogger(log_file=root / "logs" / f"{run_dir.name}.json")
     submitter = KaggleSubmitter(competition=cfg.kaggle_competition)
 
