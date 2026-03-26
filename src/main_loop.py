@@ -107,7 +107,7 @@ class WorkflowManager:
         self.logger.add_event("code_execution_loop_start", {"author": author_name, "initial_msg": initial_code_msg})
         
         loop_rounds = 0
-        while loop_rounds < 10:
+        while loop_rounds < 30:
             loop_rounds += 1
             last_msg = execution_history[-1]
             

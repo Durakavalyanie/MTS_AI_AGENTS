@@ -65,6 +65,7 @@ def llm_config_for_role(cfg: AgentRuntimeConfig, role: str) -> dict[str, Any]:
                 "model": model_name,
                 "api_key": cfg.openrouter_api_key,
                 "base_url": cfg.openrouter_base_url,
+                "price" : [0, 0]
             }
         ],
         "temperature": 0.2,
