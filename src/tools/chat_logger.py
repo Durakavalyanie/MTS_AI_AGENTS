@@ -42,7 +42,7 @@ def save_code_blocks(messages: list[dict[str, Any]], target_dir: Path) -> int:
         
         calls = parse_tool_calls(content)
         for tool_name, args in calls:
-            if tool_name in ("execute_code", "review_code"):
+            if tool_name in ("execute_code"):
                 code = args.get("code")
                 if code:
                     code_counter += 1

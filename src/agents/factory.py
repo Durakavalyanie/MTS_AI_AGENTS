@@ -53,7 +53,7 @@ class AgentBundle:
         else:
             resp = {
                 "status": "FAILED",
-                "summary": "Runtime error occurred. Send traceback to ReviewerDebugger.",
+                "summary": "Runtime error occurred. Send traceback to Author.",
                 "output": result.output
             }
             

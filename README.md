@@ -14,7 +14,6 @@ Quickstart for the AutoGen multi-agent Kaggle loop (OpenRouter-based).
   - `OPENROUTER_MODEL_DATA_ANALYST`
   - `OPENROUTER_MODEL_DATA_ENGINEER`
   - `OPENROUTER_MODEL_ML_ENGINEER`
-  - `OPENROUTER_MODEL_REVIEWER`
   - `KAGGLE_USERNAME`
   - `KAGGLE_KEY`
   - `KAGGLE_COMPETITION`
@@ -25,7 +24,7 @@ Quickstart for the AutoGen multi-agent Kaggle loop (OpenRouter-based).
 Put Kaggle files into `data/raw/`:
 - `train.csv`
 - `test.csv`
-- `sample_submition.csv` (kept as-is based on current dataset filename)
+- `sample_submission.csv` (kept as-is based on current dataset filename)
 
 ## 3) Run loop
 

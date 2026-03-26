@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import time
 import shutil
 from datetime import datetime
 from pathlib import Path
@@ -31,7 +32,7 @@ def _next_run_dir(root: Path) -> Path:
     # Copy data files to workspace
     raw_dir = root / "data" / "raw"
     if raw_dir.exists():
-        for file_name in ["train.csv", "test.csv", "sample_submition.csv"]:
+        for file_name in ["train.csv", "test.csv", "sample_submission.csv"]:
             src_file = raw_dir / file_name
             if src_file.exists():
                 shutil.copy(src_file, run_dir / file_name)
@@ -72,10 +73,17 @@ class WorkflowManager:
         self.round_count = 0
 
     def _generate_reply(self, agent: Any, messages: list[dict[str, Any]], sender_name: str) -> str:
-        reply = agent.generate_reply(messages=messages, sender=agent)
-        if isinstance(reply, dict):
-            reply = reply.get("content", "")
-        return str(reply)
+        delay = [10, 30, 60]
+        for i in range(len(delay)):
+            try:
+                reply = agent.generate_reply(messages=messages, sender=agent)
+                if isinstance(reply, dict):
+                    reply = reply.get("content", "")
+                return str(reply)
+            except Exception as e:
+                print("\n\nERROR:\n" + str(e))
+                time.sleep(delay[i])
+        raise
 
     def _print_turn(self, speaker: str, content: str = "") -> None:
         print(f"\n{'='*50}", flush=True)
@@ -132,6 +140,7 @@ class WorkflowManager:
                         
             elif last_msg["name"] == "CodeExecutor" or last_msg["name"] == "System":
                 print(f"  [{last_msg['name']}] -> {author_name} (Returning result/error)", flush=True)
+                execution_history.append({"role": "user", "name": "System", "content": f"You have {(self.cfg.max_loop_rounds - loop_rounds)/2} turns left until you HAVE TO finish your work and response with send_message tool"})
                 reply = self._generate_reply(author_agent, execution_history, author_name)
                 errors = validate_tool_calls(reply, author_name)
                 if errors:
