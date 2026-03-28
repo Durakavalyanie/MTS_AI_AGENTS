@@ -12,6 +12,7 @@ from src.agents.factory import create_agents, AgentBundle
 from src.chat_manager import parse_tool_calls, validate_tool_calls
 from src.tools.chat_logger import TrajectoryLogger
 from src.tools.kaggle_submitter import KaggleSubmitter
+from src.tools.rag import load_best_trajectories
 
 
 def _project_root() -> Path:
@@ -40,10 +41,28 @@ def _next_run_dir(root: Path) -> Path:
     return run_dir
 
 
+def _record_benchmark(root: Path, run_name: str, best_score: float | None, rounds: int, stop_reason: str):
+    benchmark_file = root / "logs" / "benchmark.jsonl"
+    benchmark_file.parent.mkdir(parents=True, exist_ok=True)
+    
+    summary = {
+        "ts": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "run": run_name,
+        "best_score": best_score,
+        "rounds": rounds,
+        "stop_reason": stop_reason
+    }
+    
+    with benchmark_file.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(summary) + "\n")
+
+
 def _build_initial_prompt(cfg: AgentRuntimeConfig, run_dir: Path, prev_score: float | None, prev_error: str | None) -> str:
+    rag_context = load_best_trajectories(run_dir.parents[1] / "best_trajectories")
     return (
         "Solve the Kaggle competition task using strict role separation.\n"
-        "You must produce submission.csv in workspace and call submit_to_kaggle."
+        "You must produce submission.csv in workspace and call submit_to_kaggle.\n"
+        f"{rag_context}"
     )
 
 
@@ -268,7 +287,11 @@ def run() -> None:
     cfg = load_runtime_config(root)
     run_dir = _next_run_dir(root)
     logger = TrajectoryLogger(log_file=root / "logs" / f"{run_dir.name}.json")
-    submitter = KaggleSubmitter(competition=cfg.kaggle_competition)
+    submitter = KaggleSubmitter(
+        competition=cfg.kaggle_competition,
+        username=cfg.kaggle_username,
+        key=cfg.kaggle_key
+    )
 
     try:
         manager = WorkflowManager(
@@ -282,6 +305,11 @@ def run() -> None:
     except KeyboardInterrupt:
         logger.add_event("keyboard_interrupt", {"message": "Run interrupted by user"})
     finally:
+        stop_reason = "interrupted" if "manager" not in locals() or not manager.stop_condition_met else "target_met"
+        if "manager" in locals():
+            if manager.round_count >= cfg.max_round:
+                stop_reason = "limit_reached"
+            _record_benchmark(root, run_dir.name, manager.best_score, manager.round_count, stop_reason)
         logger.flush()
 
 

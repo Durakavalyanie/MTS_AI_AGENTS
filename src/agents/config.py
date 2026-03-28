@@ -42,13 +42,14 @@ def load_runtime_config(project_root: Path) -> AgentRuntimeConfig:
         "data_analyst": _model_from_env("DATA_ANALYST"),
         "data_engineer": _model_from_env("DATA_ENGINEER"),
         "ml_engineer": _model_from_env("ML_ENGINEER"),
+        "reviewer": _model_from_env("REVIEWER"),
     }
 
     return AgentRuntimeConfig(
         openrouter_api_key=_require_env("OPENROUTER_API_KEY"),
         openrouter_base_url=_require_env("OPENROUTER_BASE_URL"),
         kaggle_username=_require_env("KAGGLE_USERNAME"),
-        kaggle_key=_require_env("KAGGLE_API_TOKEN"),
+        kaggle_key=_require_env("KAGGLE_KEY"),
         kaggle_competition=_require_env("KAGGLE_COMPETITION"),
         target_mse=float(_require_env("TARGET_MSE")),
         max_round=int(os.getenv("MAX_ROUND", "40")),

@@ -1,41 +1,61 @@
-# MTS_AI_AGENTS
+# Agentic Machine Learning Pipeline (MTS_AI_AGENTS)
 
-Quickstart for the AutoGen multi-agent Kaggle loop (OpenRouter-based).
+Automated multi-agent system for Kaggle competitions based on AutoGen and OpenRouter.
 
-## 1) Prepare environment
+## Overview
 
-- Create/activate project virtual env (`.venv`).
-- Install dependencies:
-  - `pip install -r requirements.txt`
-- Fill placeholders in `.env`:
-  - `OPENROUTER_API_KEY`
-  - `OPENROUTER_BASE_URL`
-  - `OPENROUTER_MODEL_ORCHESTRATOR`
-  - `OPENROUTER_MODEL_DATA_ANALYST`
-  - `OPENROUTER_MODEL_DATA_ENGINEER`
-  - `OPENROUTER_MODEL_ML_ENGINEER`
-  - `KAGGLE_USERNAME`
-  - `KAGGLE_KEY`
-  - `KAGGLE_COMPETITION`
-  - `TARGET_MSE`
+The system implements a collaborative environment where specialized agents (Orchestrator, Data Analyst, Data Engineer, ML Engineer, and Reviewer) work together to solve data science tasks. It features RAG-based context injection from past successful runs and automated benchmarking of results.
 
-## 2) Data layout
+## Prerequisites
 
-Put Kaggle files into `data/raw/`:
-- `train.csv`
-- `test.csv`
-- `sample_submission.csv` (kept as-is based on current dataset filename)
+- Python 3.10+
+- Virtual environment (recommended: `.venv`)
+- Kaggle API credentials
+- OpenRouter API key
 
-## 3) Run loop
+## Installation
 
-- Run: `python -m src.main_loop`
-- The script creates `workspace/run_XXX_timestamp/` for each launch.
-- Agents generate `submission.csv` in the run folder.
-- Python wrapper submits to Kaggle and checks `TARGET_MSE`.
-- Full trajectory is written into `logs/*.json`.
+1. Clone the repository.
+2. Install dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
+3. Configure environment variables in `.env` (refer to `.env.example` or the list below).
 
-## 4) Notes
+## Configuration (.env)
 
-- OpenRouter is used for all LLM-based agents.
-- Different roles can use different models via per-role env variables.
-- Code execution goes through deterministic policy checks before running.
+| Variable | Description |
+|----------|-------------|
+| `OPENROUTER_API_KEY` | API key for OpenRouter access |
+| `OPENROUTER_BASE_URL` | Base URL for OpenRouter (https://openrouter.ai/api/v1) |
+| `KAGGLE_USERNAME` | Kaggle account username |
+| `KAGGLE_KEY` | Kaggle API key (32-character hex) |
+| `KAGGLE_COMPETITION` | Slug of the Kaggle competition |
+| `TARGET_MSE` | Target metric for pipeline termination |
+| `OPENROUTER_MODEL_*` | Specific models for each agent role |
+
+## Project Structure
+
+- `src/` - Core logic including agent factory, tools, and main orchestration loop.
+- `data/raw/` - Directory for input datasets (`train.csv`, `test.csv`, `sample_submission.csv`).
+- `workspace/` - Isolated directories for each execution run.
+- `logs/` - Trajectory logs (JSON) and benchmarking results (`benchmark.jsonl`).
+- `best_trajectories/` - Knowledge base for RAG (successful past run logs).
+
+## Execution
+
+To start the pipeline, run the following command:
+```bash
+python3 -m src.main_loop
+```
+
+## Features
+
+### 1. Retrieval-Augmented Generation (RAG)
+The system automatically analyzes logs in `best_trajectories/` to extract successful strategies, code snippets, and hyperparameters from previous high-scoring runs. This context is injected into the initial prompt to guide current agents.
+
+### 2. Automated Benchmarking
+Every execution run is recorded in `logs/benchmark.jsonl`, including timestamps, best scores achieved, number of rounds, and termination reasons. This allows for systematic performance tracking across different model configurations.
+
+### 3. Safety Guardrails
+Code execution is restricted by a deterministic policy check (`src/tools/code_policy.py`) that prevents package installation, network access, and unsafe file operations.

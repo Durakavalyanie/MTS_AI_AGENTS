@@ -1,5 +1,4 @@
-from __future__ import annotations
-
+import os
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -15,8 +14,13 @@ class KaggleResult:
 
 
 class KaggleSubmitter:
-    def __init__(self, competition: str) -> None:
+    def __init__(self, competition: str, username: str | None = None, key: str | None = None) -> None:
         self.competition = competition
+        if username:
+            os.environ["KAGGLE_USERNAME"] = username
+        if key:
+            os.environ["KAGGLE_KEY"] = key
+            
         self.api = KaggleApi()
         self.api.authenticate()
 

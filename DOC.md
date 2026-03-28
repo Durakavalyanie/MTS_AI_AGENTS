@@ -19,6 +19,27 @@ The project implements a multi-agent AutoGen pipeline for Kaggle competitions.
 - `src/main_loop.py` - top-level orchestration loop.
 - `logs/` - persisted trajectory events in JSON.
 
+## Architecture Diagram
+
+```mermaid
+graph TD
+    System[System / Initial Prompt] --> Orch[Orchestrator]
+    Orch -->|delegate| Analyst[DataAnalyst]
+    Orch -->|delegate| DE[DataEngineer]
+    Orch -->|delegate| MLE[MLEngineer]
+    
+    Analyst -->|execute_code| Exec[CodeExecutor Backend]
+    DE -->|execute_code| Exec
+    MLE -->|execute_code| Exec
+    
+    Exec -->|policy_check| Policy[src/tools/code_policy.py]
+    Policy -->|approved| ActualExec[LocalCommandLineCodeExecutor]
+    
+    MLE -->|submission.csv| Orch
+    Orch -->|submit_to_kaggle| Kaggle[Kaggle API]
+    Kaggle -->|score| Orch
+```
+
 ## Agent roles
 
 1. `Orchestrator`  
@@ -81,24 +102,39 @@ Code execution routing is deterministic and does not depend on orchestrator deci
 
 To keep fixes grounded, code proposals and reviews carry `EXPECTED_OUTCOME`.
 
-## Main loop
+## RAG (Retrieval-Augmented Generation)
 
-`src/main_loop.py` workflow:
+The RAG system is implemented in `src/tools/rag.py`. It provides agents with context from the `best_trajectories/` directory.
 
-1. Load env/config.
-2. Create new `workspace/run_XXX_timestamp/`.
-3. Start AutoGen session.
-4. Collect and persist chat trajectory events.
-5. Submit `submission.csv` with Kaggle API.
-6. Compare score to `TARGET_MSE`.
-7. Stop when target reached or iteration limit exceeded.
-8. Handle `KeyboardInterrupt` gracefully and flush logs.
+- **Extraction**: It parses JSON logs to find `agent_completed_task` events and `kaggle_submission` scores.
+- **Injection**: Captured knowledge is appended to the initial system prompt, helping agents replicate successful feature engineering and modeling patterns.
+
+## Benchmarking
+
+Performance metrics are persisted in `logs/benchmark.jsonl` upon completion of each run. Each entry contains:
+- `ts`: Execution timestamp.
+- `run`: Run directory name.
+- `best_score`: Final metric achieved.
+- `rounds`: Total rounds consumed.
+- `stop_reason`: Termination trigger (target met, limit reached, or interrupted).
+
+## Main loop workflow
+
+1. **Initialization**: Load environment and validate system configuration.
+2. **Environment Setup**: Create timestamped run directory and initialize logging.
+3. **RAG Context**: Query `best_trajectories/` and build the augmented initial prompt.
+4. **Agent Loop**:
+   - `Orchestrator` analyzes state and delegates to a specific agent.
+   - Target agent (Analyst, Engineer, or MLE) performs work and executes code via the backend.
+   - Chat trajectory is persisted in real-time.
+5. **Kaggle Integration**: Submits results to the competition API and retrieves live leaderboard scores.
+6. **Persistence**: Flushes final trajectory and appends summary to the benchmark file.
 
 ## Logging
 
-`TrajectoryLogger` stores timestamped events and flushes to `logs/<run>.json`.
+`TrajectoryLogger` stores timestamped events in `logs/<run>.json`.
 Saved events include:
-- iteration starts
-- chat messages snapshot
-- Kaggle submission status and score
-- stop conditions or interruptions
+- `orchestrator_turn`: Decisions and directives.
+- `agent_reply`: Tool calls and reasoning from specialized agents.
+- `kaggle_submission`: Detailed submission results and scores.
+- `stop_condition_met`: Successful completion events.
