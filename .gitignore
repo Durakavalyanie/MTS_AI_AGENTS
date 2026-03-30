@@ -1,7 +1,5 @@
-.cursor*
 .vscode
 .python-version
-TASK.md
 .env
 .venv/
 workspace/run_*/
