@@ -139,12 +139,12 @@ class WorkflowManager:
                     code = exec_call.get("code", "")
                     exec_result = self.bundle.execute_code(code)
                     execution_history.append({"role": "user", "name": "CodeExecutor", "content": exec_result})
-                    self.logger.add_event("executor_result", {"content": exec_result})
+                    self.logger.add_event("executor_result", {"author": author_name, "content": exec_result})
                 else:
                     # No recognizable tool call, should have been caught by validation, but just in case
                     error_msg = "Protocol Validation Error:\nError: You must use either 'execute_code' or 'send_message'."
                     execution_history.append({"role": "user", "name": "System", "content": error_msg})
-                    self.logger.add_event("author_validation_error", {"errors": [error_msg], "reply": last_msg["content"]})
+                    self.logger.add_event("author_validation_error", {"author": author_name, "errors": [error_msg], "reply": last_msg["content"]})
                         
             elif last_msg["name"] == "CodeExecutor" or last_msg["name"] == "System":
                 print(f"  [{last_msg['name']}] -> {author_name} (Returning result/error)", flush=True)
@@ -153,14 +153,14 @@ class WorkflowManager:
                 errors = validate_tool_calls(reply, author_name)
                 if errors:
                     execution_history.append({
-                        "role": "user", 
-                        "name": "System", 
+                        "role": "user",
+                        "name": "System",
                         "content": "Protocol Validation Error:\n" + "\n".join(errors) + "\nPlease fix your JSON format and try again."
                     })
-                    self.logger.add_event("author_validation_error", {"errors": errors, "reply": reply})
+                    self.logger.add_event("author_validation_error", {"author": author_name, "errors": errors, "reply": reply})
                 else:
                     execution_history.append({"role": "assistant", "name": author_name, "content": reply})
-                    self.logger.add_event("author_reply", {"content": reply})
+                    self.logger.add_event("author_reply", {"author": author_name, "content": reply})
                     
         timeout_msg = "[TOOL_CALL]send_message\n{\"thoughts\": \"Execution loop timed out.\", \"message\": \"Error: Code execution loop reached maximum attempts.\"}"
         self.logger.add_event("code_execution_loop_timeout", {"msg": timeout_msg})
@@ -274,11 +274,6 @@ class WorkflowManager:
                         "role": "assistant", "name": next_speaker, "content": final_msg + dir_state
                     })
                     self.logger.add_event("agent_completed_task", {"agent": next_speaker, "content": final_msg + dir_state})
-                else:
-                    self.shared_history.append({
-                        "role": "assistant", "name": "System", "content": "Orchestrator has to use one of theese tools: delegate, submit_to_kaggle"
-                    })
-                    self.logger.add_event("agent_completed_task", {"agent": next_speaker, "content": final_msg})
 
 
 
