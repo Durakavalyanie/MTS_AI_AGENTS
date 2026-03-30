@@ -24,6 +24,8 @@ class KaggleSubmitter:
         self.api = KaggleApi()
         self.api.authenticate()
 
+    _POLL_INTERVALS = [5, 5, 10, 10, 15, 15, 20, 20, 30, 30]
+
     def submit(self, submission_path: Path, message: str) -> KaggleResult:
         if not submission_path.exists():
             return KaggleResult(
@@ -37,21 +39,33 @@ class KaggleSubmitter:
             message=message,
             competition=self.competition,
         )
-        time.sleep(4)
 
-        submissions = self.api.competition_submissions(self.competition)
-        if not submissions:
+        return self._poll_for_score()
+
+    def _poll_for_score(self) -> KaggleResult:
+        for wait in self._POLL_INTERVALS:
+            time.sleep(wait)
+
+            submissions = self.api.competition_submissions(self.competition)
+            if not submissions:
+                continue
+
+            latest = submissions[0]
+            status_str = str(getattr(latest, "status", "unknown"))
+
+            if "pending" in status_str.lower():
+                continue
+
+            score_raw = str(getattr(latest, "publicScore", "") or "").strip()
+            score = float(score_raw) if score_raw else None
             return KaggleResult(
-                status="submitted",
-                public_score=None,
-                message="Submission sent, but submissions list is empty.",
+                status=status_str,
+                public_score=score,
+                message=str(getattr(latest, "description", "No description")),
             )
 
-        latest = submissions[0]
-        score_raw = str(getattr(latest, "publicScore", "") or "").strip()
-        score = float(score_raw) if score_raw else None
         return KaggleResult(
-            status=str(getattr(latest, "status", "submitted")),
-            public_score=score,
-            message=str(getattr(latest, "description", "No description")),
+            status="pending_timeout",
+            public_score=None,
+            message="Kaggle is still scoring the submission after all retries.",
         )

@@ -218,7 +218,17 @@ class WorkflowManager:
             "message": result.message,
         })
 
-        if result.public_score is None:
+        if result.public_score is None and result.status == "pending_timeout":
+            self.shared_history.append({
+                "role": "user",
+                "name": "KaggleSystem",
+                "content": (
+                    "Submission was accepted by Kaggle but scoring is still in progress. "
+                    "This does NOT mean the submission is wrong. "
+                    "Please call submit_to_kaggle again with the same file to re-check the score."
+                ),
+            })
+        elif result.public_score is None:
             self.shared_history.append({
                 "role": "user",
                 "name": "KaggleSystem",
