@@ -4,7 +4,7 @@ Automated multi-agent system for Kaggle competitions based on AutoGen and OpenRo
 
 ## Overview
 
-The system implements a collaborative environment where specialized agents (Orchestrator, Data Analyst, Data Engineer, ML Engineer, and Reviewer) work together to solve data science tasks. It features RAG-based context injection from past successful runs and automated benchmarking of results.
+The system implements a collaborative environment where specialized agents (Orchestrator, Data Analyst, Data Engineer, and ML Engineer) work together to solve data science tasks. It features RAG-based context injection from past successful runs and automated benchmarking of results.
 
 ## Prerequisites
 

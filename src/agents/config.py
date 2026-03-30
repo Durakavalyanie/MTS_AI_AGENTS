@@ -42,7 +42,6 @@ def load_runtime_config(project_root: Path) -> AgentRuntimeConfig:
         "data_analyst": _model_from_env("DATA_ANALYST"),
         "data_engineer": _model_from_env("DATA_ENGINEER"),
         "ml_engineer": _model_from_env("ML_ENGINEER"),
-        "reviewer": _model_from_env("REVIEWER"),
     }
 
     return AgentRuntimeConfig(
